@@ -7,16 +7,16 @@ TCPclient::TCPclient()
 	result = -1;
 }
 
-
 void TCPclient::clean_up()
 {
-	freeaddrinfo(addrResult);
-	WSACleanup();
+	closesocket(ConnectSocket);
+	freeaddrinfo(addrResult); // Free address information that the getaddrinfo function dynamically allocates in addrinfo structures.
+	WSACleanup(); // Terminate use of the Winsock2 DLL (Ws2_32.dll)
 }
 
 bool TCPclient::setup(PCSTR addr, PCSTR port)
 {
-	WSADATA wsaData; //The structure contains information about the Windows Sockets implementation
+	WSADATA wsaData; // The structure contains information about the Windows Sockets implementation
 	ADDRINFO hints; // The structure is used by the getaddrinfo function to hold host address information
 	
 	// Fill hints structure
@@ -47,7 +47,8 @@ bool TCPclient::setup(PCSTR addr, PCSTR port)
 	if(ConnectSocket == INVALID_SOCKET)
 	{
 		cout << "Socket creation failed" << endl;
-		clean_up();
+		freeaddrinfo(addrResult); // Free address information that the getaddrinfo function dynamically allocates in addrinfo structures.
+		WSACleanup(); // Terminate use of the Winsock2 DLL (Ws2_32.dll)
 		return false;
 	}
 
@@ -56,7 +57,6 @@ bool TCPclient::setup(PCSTR addr, PCSTR port)
 	if(result == SOCKET_ERROR)
 	{
 		cout << "Unable connect to server" << endl;
-		closesocket(ConnectSocket);
 		ConnectSocket = INVALID_SOCKET;
 		clean_up();
 		return false;
@@ -64,4 +64,50 @@ bool TCPclient::setup(PCSTR addr, PCSTR port)
 	return true;
 }
 
+bool TCPclient::send_data(char* data)
+{
+	result = send(ConnectSocket, data, (int)strlen(data), 0);
+	if(result == SOCKET_ERROR)
+	{
+		cout << "Send failed, error" << result << endl;
+		clean_up();
+		return false;
+	}
 
+	cout << "Send " << result << " bytes" << endl;
+	result = shutdown(ConnectSocket, SD_SEND);
+	if(result == SOCKET_ERROR)
+	{
+		cout << "Shutdown failed, error" << result << endl;
+		clean_up();
+		return false;
+	}
+	return true;
+}
+
+void TCPclient::read_data()
+{
+	const int size_buffer = 512;
+	char recvBuffer[size_buffer];
+	
+	do {
+		ZeroMemory(recvBuffer, sizeof(recvBuffer));
+		result = recv(ConnectSocket, recvBuffer, 512, 0);
+		if(result > 0)
+		{
+			
+			cout << "Received " << result << " bytes" << endl;
+			cout << "Received data: " << recvBuffer << endl;
+		}
+		else if(result == 0)
+		{
+			cout << "Connection closed" << endl;
+		}
+		else
+		{
+			cout << "recv failed with error" << endl;
+		}
+	} while(result > 0);
+
+	clean_up();
+}

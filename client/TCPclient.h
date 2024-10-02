@@ -18,4 +18,6 @@ public:
 	TCPclient();
 	~TCPclient() {};
 	bool setup(PCSTR addr, PCSTR port);
+	bool send_data(char* data);
+	void read_data();
 };
