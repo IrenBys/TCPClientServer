@@ -4,3 +4,5 @@
 *.user
 client/.vs/
 client/Debug/
+server/.vs/
+server/Debug/

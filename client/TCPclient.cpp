@@ -64,7 +64,7 @@ bool TCPclient::setup(PCSTR addr, PCSTR port)
 	return true;
 }
 
-bool TCPclient::send_data(char* data)
+bool TCPclient::send_data(const char* data)
 {
 	result = send(ConnectSocket, data, (int)strlen(data), 0);
 	if(result == SOCKET_ERROR)
