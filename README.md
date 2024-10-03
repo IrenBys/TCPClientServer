@@ -12,6 +12,7 @@ Servers and Clients have different behaviors; therefore, the process of creating
 * Accept a connection from a client.
 * Receive and send data.
 * Disconnect.
+  
 **Client**
 * Initialize Winsock.
 * Create a socket.
