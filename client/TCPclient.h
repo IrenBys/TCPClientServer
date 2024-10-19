@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #define WIN32_LEAN_AND_MEAN
 
 #include <windows.h>
@@ -9,15 +9,18 @@
 using namespace std;
 
 class TCPclient {
+public:
+	TCPclient();
+	~TCPclient() {};
+	bool setup(PCSTR addr, PCSTR port);
+	bool send_data(const string& data);
+	void read_data();
+	static void run_client(const char* serverAddress, const char* serverPort, string messageToSend);
+
 private:
 	ADDRINFO* addrResult;
 	SOCKET ConnectSocket;
 	int result;
 	void clean_up();
-public:
-	TCPclient();
-	~TCPclient() {};
-	bool setup(PCSTR addr, PCSTR port);
-	bool send_data(const char* data);
-	void read_data();
+	
 };

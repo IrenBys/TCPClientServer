@@ -1,41 +1,98 @@
-#include "TCPserver.h"
+﻿#include "TCPserver.h"
+#include <vector>
+#include <thread>
+#include <mutex>
 
-TCPserver::TCPserver()
+using namespace std;
+
+// Глобальный мьютекс для обеспечения потокобезопасности при выводе в консоль
+mutex coutMutex;
+
+void TCPserver::client_handler(SOCKET clientSocket)
 {
-	addrResult = NULL;
-	ClientSocket = INVALID_SOCKET;
-	ListenSocket = INVALID_SOCKET;
-	result = -1;
+	const int size_buffer = 512;	// Размер буфера для приема данных
+	char recvBuffer[size_buffer];	// Буфер для хранения принятых данных
+	int result;
+
+	// Цикл для приема данных от клиента
+	do {
+		ZeroMemory(recvBuffer, sizeof(recvBuffer));					// Обнуляем буфер перед каждым вызовом recv
+		result = recv(clientSocket, recvBuffer, size_buffer, 0);	// Получаем данные от клиента
+		if(result > 0)
+		{
+			// Проверяем, что результат не превышает размер буфера, прежде чем добавлять нулевой символ
+			if(result < size_buffer) {
+				recvBuffer[result] = '\0'; // Добавляем нулевой символ для завершения строки
+			}
+			else {
+				recvBuffer[size_buffer - 1] = '\0'; // Если результат равен размеру буфера, завершаем строку на последнем символе
+			}
+			// Вывод принятых данных
+			lock_guard<std::mutex> lock(coutMutex);
+			cout << "Received " << result << " bytes" << endl;
+			cout << "Received data: " << recvBuffer << endl;
+			const char* data = "Message received";
+			// Отправляем данные через сокет клиента
+			send(clientSocket, data, (int)strlen(data), 0);
+		}
+		else if(result == 0)
+		{
+			lock_guard<std::mutex> lock(coutMutex);
+			cout << "Connection closing..." << endl;	// Клиент закрыл соединение
+		}
+		else
+		{
+			lock_guard<std::mutex> lock(coutMutex);
+			cout << "recv failed with error" << endl;
+		}
+	} while(result > 0); // Продолжаем принимать данные, пока клиент не завершит соединение
+	closesocket(clientSocket);
 }
 
-void TCPserver::clean_up(SOCKET sock)
+// Конструктор класса TCPserver, инициализирует Winsock
+TCPserver::TCPserver() : addrResult(nullptr), ClientSocket(INVALID_SOCKET), ListenSocket(INVALID_SOCKET), result(0)
 {
-	closesocket(sock);
-	freeaddrinfo(addrResult); // Free address information that the getaddrinfo function dynamically allocates in addrinfo structures.
-	WSACleanup(); // Terminate use of the Winsock2 DLL (Ws2_32.dll)
-}
+	WSADATA wsaData; // Структура содержит информацию о реализации Windows Sockets
 
-bool TCPserver::setup(PCSTR port)
-{
-	WSADATA wsaData; // The structure contains information about the Windows Sockets implementation
-	ADDRINFO hints; // The structure is used by the getaddrinfo function to hold host address information
-
-	// Fill hints structure
-	ZeroMemory(&hints, sizeof(hints));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-	hints.ai_flags = AI_PASSIVE;
-
-	// Initiate use of the Winsock DLL by a process
+	// Инициализация использования библиотеки Winsock
 	result = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if(result != 0)
 	{
 		cout << "WSAStartup failed, result = " << result << endl;
-		return false;
+	}
+}
+
+// Метод для очистки ресурсов (закрытие сокетов и завершение работы Winsock)
+void TCPserver::clean_up(SOCKET sock)
+{
+	// Проверяем, является ли сокет валидным, перед тем как его закрыть
+	if(sock != INVALID_SOCKET)
+	{
+		closesocket(sock);
+	}
+	// Освобождаем память, выделенную под информацию об адресах
+	if(addrResult != nullptr)
+	{
+		freeaddrinfo(addrResult); // Освобождаем структуру addrinfo, полученную с помощью getaddrinfo
 	}
 
-	// Provide protocol-independent translation from an ANSI host name to an address
+	WSACleanup(); // Завершаем использование библиотеки Winsock
+}
+
+// Метод настройки сервера на указанный порт
+bool TCPserver::setup(PCSTR port)
+{
+	
+	ADDRINFO hints;	// Структура для хранения информации о сервере (настройки сокета)
+
+	// Инициализируем структуру hints
+	ZeroMemory(&hints, sizeof(hints));	
+	hints.ai_family = AF_INET;			// Используем IPv4 
+	hints.ai_socktype = SOCK_STREAM;	// Используем потоковый сокет (TCP)
+	hints.ai_protocol = IPPROTO_TCP;	// Протокол TCP
+	hints.ai_flags = AI_PASSIVE;		// Сервер будет работать на всех доступных сетевых интерфейсах
+
+	// Преобразуем имя узла в IP-адрес с помощью getaddrinfo
 	result = getaddrinfo(NULL, port, &hints, &addrResult);
 	if(result != 0)
 	{
@@ -44,7 +101,9 @@ bool TCPserver::setup(PCSTR port)
 		return false;
 	}
 
-	// Create socket
+	cout << "getaddrinfo is setup" << endl;
+
+	// Создаем сокет для прослушивания входящих соединений
 	ListenSocket = socket(addrResult->ai_family, addrResult->ai_socktype, addrResult->ai_protocol);
 	if(ListenSocket == INVALID_SOCKET)
 	{
@@ -54,86 +113,52 @@ bool TCPserver::setup(PCSTR port)
 		return false;
 	}
 
-	// Binding socket
+	cout << "ListenSocket is created" << endl;
+
+	// Привязываем сокет к адресу и порту, чтобы сервер знал, где принимать соединения
 	result = bind(ListenSocket, addrResult->ai_addr, (int)addrResult->ai_addrlen);
 	if(result == SOCKET_ERROR)
 	{
-		cout << "Binding socket failed" << endl;
+		cout << "Binding socket failed" << WSAGetLastError() << endl;
 		ListenSocket = INVALID_SOCKET;
 		clean_up(ListenSocket);
 		return false;
 	}
 
-	// Listening mode (wait info from socket)
+	cout << "ListenSocket is binded" << endl;
+
+	// Переводим сокет в режим прослушивания (ожидание входящих подключений)
 	result = listen(ListenSocket, SOMAXCONN);
 	if(result == SOCKET_ERROR)
 	{
-		cout << "Listeting socket failed" << endl;
+		cout << "Listeting socket failed" << WSAGetLastError() << endl;
 		clean_up(ListenSocket);
 		return false;
 	}
 
-	// Return client socket
-	ClientSocket = accept(ListenSocket, NULL, NULL);
-	if(ClientSocket == INVALID_SOCKET)
+	cout << "Server is listening on port " << port << endl;
+
+	// Бесконечный цикл для приема входящих подключений
+
+	while(true)
 	{
-		cout << "Accepting socket failed" << endl;
-		clean_up(ListenSocket);
-		return false;
-	}
-	closesocket(ListenSocket);
-	return true;
-}
-
-bool TCPserver::send_data(const char* data)
-{
-	result = send(ClientSocket, data, (int)strlen(data), 0);
-	if(result == SOCKET_ERROR)
-	{
-		cout << "Send failed, error" << result << endl;
-		clean_up(ClientSocket);
-		return false;
-	}
-	return true;
-}
-
-bool TCPserver::read_data(const char* data)
-{
-	const int size_buffer = 512;
-	char recvBuffer[size_buffer];
-
-	do {
-		ZeroMemory(recvBuffer, sizeof(recvBuffer));
-		result = recv(ClientSocket, recvBuffer, 512, 0);
-		if(result > 0)
+		ClientSocket = accept(ListenSocket, NULL, NULL);	// Принимаем входящее подключение от клиента
+		if(ClientSocket == INVALID_SOCKET)
 		{
-
-			cout << "Received " << result << " bytes" << endl;
-			cout << "Received data: " << recvBuffer << endl;
-			send_data(data);
-		}
-		else if(result == 0)
-		{
-			cout << "Connection closing..." << endl;
-		}
-		else
-		{
-			cout << "recv failed with error" << endl;
-			clean_up(ClientSocket);
+			cout << "Accepting socket failed" << WSAGetLastError() << endl;
+			clean_up(ListenSocket);
 			return false;
 		}
-	} while(result > 0);
 
-	result = shutdown(ClientSocket, SD_SEND);
-	if(result == SOCKET_ERROR)
-	{
-		cout << "Shutdown failed, error" << result << endl;
-		clean_up(ClientSocket);
-		return false;
+		std::lock_guard<std::mutex> lock(coutMutex);
+		cout << "Client connected!" << endl;
+
+		// Создание нового потока для обработки клиента
+		thread(client_handler, ClientSocket).detach(); // Отделение потока для обработки клиента
+
 	}
-
-	clean_up(ClientSocket);
+	closesocket(ListenSocket);	// Закрываем сокет прослушивания, так как он больше не нужен
 	return true;
-
-	
 }
+
+
