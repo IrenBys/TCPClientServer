@@ -2,13 +2,9 @@
 #include <thread>
 #include <vector>
 #include <string>
-#include <mutex>
 #include "TCPclient.h"
 
 using namespace std;
-
-
-
 
 int main() {
 
@@ -17,10 +13,9 @@ int main() {
 	const int numberOfClients = 5;				// Количество клиентов, которые мы хотим создать
 	vector<thread> clients;						// Вектор для хранения потоков клиентов
 	
-	for(int i = 0; i < numberOfClients; ++i)
-	{
+	for(int i = 0; i < numberOfClients; ++i) {
 		string messageToSend = "Hello Server from client " + to_string(i);
-		clients.emplace_back(TCPclient::run_client, serverAddress, serverPort, messageToSend); // Запускаем каждый клиент в отдельном потоке
+		clients.emplace_back(TCPclient::run_client, serverAddress, serverPort, messageToSend, i); // Запускаем каждый клиент в отдельном потоке
 	}
 
 	// Ждем, пока все клиенты завершатся

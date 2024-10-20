@@ -1,13 +1,12 @@
 ﻿#include <iostream>
-#include <thread>
-#include <vector>
-#include <string>
 #include <mutex>
 #include "TCPclient.h"
 
+using namespace std;
+
 mutex cout_mutex; // Глобальный мьютекс для синхронизации вывода
 
-void TCPclient::run_client(const char* serverAddress, const char* serverPort, string messageToSend) {
+void TCPclient::run_client(const char* serverAddress, const char* serverPort, string messageToSend, int number) {
 
 	TCPclient client;	// Создаем объект клиента
 
@@ -20,7 +19,8 @@ void TCPclient::run_client(const char* serverAddress, const char* serverPort, st
 
 	{
 		lock_guard<mutex> lock(cout_mutex);
-		cout << "Client is set up and ready to send data on port " << serverPort << endl;
+		cout << "Client " << number
+			 << " is set up and ready to send data on port " << serverPort << endl;
 	}
 
 	// Отправка данных на сервер
@@ -32,17 +32,15 @@ void TCPclient::run_client(const char* serverAddress, const char* serverPort, st
 
 	{
 		lock_guard<mutex> lock(cout_mutex);
-		cout << "Client connecting to " << serverAddress
+		cout << "Client " << number
+			<< " connecting to " << serverAddress
 			<< " on port " << serverPort
 			<< " with message: " << messageToSend << endl;
 	}
-
-
 	// Чтение ответа от сервера
 	client.read_data();
 }
 
-using namespace std;
 
 TCPclient::TCPclient() : addrResult(nullptr), ConnectSocket(INVALID_SOCKET), result(0) {
 
@@ -50,8 +48,7 @@ TCPclient::TCPclient() : addrResult(nullptr), ConnectSocket(INVALID_SOCKET), res
 
 	// Инициализация использования библиотеки Winsock
 	result = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	if(result != 0)
-	{
+	if(result != 0)	{
 		lock_guard<mutex> lock(cout_mutex);
 		cout << "WSAStartup failed, result = " << result << endl;
 	}
@@ -84,8 +81,7 @@ bool TCPclient::setup(PCSTR addr, PCSTR port)
 
 	// Получаем адреса для подключения к серверу
 	result = getaddrinfo(addr, port, &hints, &addrResult);
-	if(result != 0)
-	{
+	if(result != 0)	{
 		lock_guard<mutex> lock(cout_mutex);
 		cout << "getaddrinfo failed, result = " << result << endl;
 		WSACleanup();
@@ -94,8 +90,7 @@ bool TCPclient::setup(PCSTR addr, PCSTR port)
 
 	// Создаем сокет подключения
 	ConnectSocket = socket(addrResult->ai_family, addrResult->ai_socktype, addrResult->ai_protocol);
-	if(ConnectSocket == INVALID_SOCKET)
-	{
+	if(ConnectSocket == INVALID_SOCKET)	{
 		lock_guard<mutex> lock(cout_mutex);
 		cout << "Socket creation failed, error = " << WSAGetLastError() << endl;
 		freeaddrinfo(addrResult);	// Освобождаем память
@@ -105,8 +100,7 @@ bool TCPclient::setup(PCSTR addr, PCSTR port)
 
 	// Connect server
 	result = connect(ConnectSocket, addrResult->ai_addr, (int)addrResult->ai_addrlen);
-	if(result == SOCKET_ERROR)
-	{
+	if(result == SOCKET_ERROR) {
 		lock_guard<mutex> lock(cout_mutex);
 		cout << "Unable connect to server, error = " << WSAGetLastError() << endl;
 		ConnectSocket = INVALID_SOCKET;
@@ -121,22 +115,15 @@ bool TCPclient::send_data(const string& data)
 {
 	// Отправляем данные через сокет подключения
 	result = send(ConnectSocket, data.c_str(), (int)data.size(), 0);
-	if(result == SOCKET_ERROR)
-	{
+	if(result == SOCKET_ERROR) {
 		lock_guard<mutex> lock(cout_mutex);
 		cout << "Send failed, error = " << result << endl;
 		clean_up();
 		return false;
 	}
-
-	{
-		lock_guard<mutex> lock(cout_mutex);
-		cout << "Send " << result << " bytes" << endl;
-	}
 	
 	result = shutdown(ConnectSocket, SD_SEND);
-	if(result == SOCKET_ERROR)
-	{
+	if(result == SOCKET_ERROR) {
 		lock_guard<mutex> lock(cout_mutex);
 		cout << "Shutdown failed, error = " << WSAGetLastError() << endl;
 		clean_up();
@@ -155,8 +142,7 @@ void TCPclient::read_data()
 	do {
 		ZeroMemory(recvBuffer, sizeof(recvBuffer));	// Обнуляем буфер перед каждым вызовом recv
 		result = recv(ConnectSocket, recvBuffer, size_buffer, 0);	// Получаем данные от сервера
-		if(result > 0)
-		{
+		if(result > 0) {
 			// Проверяем, что результат не превышает размер буфера, прежде чем добавлять нулевой символ
 			if(result < size_buffer) {
 				recvBuffer[result] = '\0'; // Добавляем нулевой символ для завершения строки
@@ -171,13 +157,11 @@ void TCPclient::read_data()
 			}
 
 		}
-		else if(result == 0)
-		{
+		else if(result == 0) {
 			lock_guard<mutex> lock(cout_mutex);
 			cout << "Connection closed by server" << endl; // Сервер закрыл соединение
 		}
-		else
-		{
+		else {
 			lock_guard<mutex> lock(cout_mutex);
 			cout << "recv failed, error = " << WSAGetLastError() << endl;
 		}

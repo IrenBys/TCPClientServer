@@ -1,7 +1,7 @@
-﻿// server.cpp : Этот файл содержит функцию "main". Здесь начинается и заканчивается выполнение программы.
-//
-
+﻿#include <iostream>
 #include "TCPserver.h"
+
+using namespace std;
 
 int main() {
 
@@ -13,13 +13,11 @@ int main() {
 
 	// Настройка сервера на указанный порт
 	if(!server.setup(port)) {
-		std::cout << "Server setup failed" << std::endl; // Сообщение об ошибке настройки
+		cout << "Server setup failed" << endl; 
 		return 1; 
 	}
 
-	std::cout << "Server is set up and listening on port " << port << std::endl;
-
+	cout << "Server is set up and listening on port " << port << endl;
 
 	return 0;
 }
-

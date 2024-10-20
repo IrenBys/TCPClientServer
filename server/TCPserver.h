@@ -1,7 +1,6 @@
 ﻿#pragma once
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <iostream>
 
 class TCPserver {
 public:
@@ -13,7 +12,7 @@ public:
 
 private:
 	ADDRINFO* addrResult;	// Указатель на информацию об адресах
-	SOCKET ClientSocket;
+	SOCKET ClientSocket;	// Сокет клиента
 	SOCKET ListenSocket;	// Сокет для прослушивания
 	int result;				// Переменная для хранения результата операций
 
@@ -22,6 +21,4 @@ private:
 
 	// Функция для обработки клиента
 	static void client_handler(SOCKET clientSocket);
-
 };
-
